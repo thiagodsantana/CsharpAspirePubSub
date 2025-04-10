@@ -1,0 +1,6 @@
+@CsharpAspirePubSub.Emprestimos.API_HostAddress = http://localhost:5139
+
+GET {{CsharpAspirePubSub.Emprestimos.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
