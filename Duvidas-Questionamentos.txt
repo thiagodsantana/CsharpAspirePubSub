@@ -1,0 +1,88 @@
+
+---
+
+## 🚦 **1. Autenticação e Segurança**
+
+### ❓**Devemos utilizar Application Default Credentials (ADC) em produção?**
+- Em dev/local é ótimo, mas em produção talvez devamos usar [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) ou o `GoogleCredential.FromJson()` com segredos seguros via `Secret Manager`, `Azure Key Vault`, etc.
+  
+---
+
+## 🔄 **2. Modo de processamento das mensagens**
+
+### ❓**Deveríamos usar o modelo push ou pull para o Pub/Sub?**
+- Atualmente está sendo usado o **pull com SubscriberClient**.
+- Push pode simplificar a entrega (ex: webhook HTTP), mas perde controle fino de fluxo e retry.
+
+### ❓**Precisamos de controle de concorrência ou paralelismo no SubscriberClient?**
+- Por padrão, ele processa mensagens em paralelo, mas podemos limitar via `FlowControlSettings`.
+- Ideal se for necessário garantir ordem ou limitar consumo de recursos.
+
+---
+
+## 💥 **3. Garantia de entrega e tolerância a falhas**
+
+### ❓**Como garantimos que uma mensagem não será perdida se o processamento falhar?**
+- Atualmente usamos `Ack`/`Nack`. Mas e se o worker crashar no meio?
+- Podemos discutir uso de **Dead Letter Topics (DLT)** para falhas permanentes.
+- E também idempotência do processamento (evitar duplicatas no banco).
+
+---
+
+## 📈 **4. Monitoramento e observabilidade**
+
+### ❓**Como vamos monitorar o fluxo de mensagens, taxa de erro, latência etc.?**
+- Cloud Pub/Sub fornece métricas nativas, mas como trazemos isso para nosso observability stack (OpenTelemetry? Aspire? Prometheus/Grafana?).
+- Importância de tracing distribuído se o fluxo for expandido (ex: API → PubSub → Worker → DB).
+
+---
+
+## 🧰 **5. Versionamento de mensagens**
+
+### ❓**Como versionar e evoluir o formato das mensagens JSON com segurança?**
+- Se a estrutura de `SolicitacaoEmprestimo` mudar?
+- Devemos adotar envelopamento com metadados? Usar Protobuf ao invés de JSON?
+
+---
+
+## 📦 **6. Estrutura de tópicos e projetos GCP**
+
+### ❓**Vale a pena usar um tópico por tipo de mensagem ou centralizar tudo em um tópico só com filtragem?**
+- Pode-se usar atributos nas mensagens para routing.
+- Separação de tópicos ajuda no isolamento e escalabilidade.
+
+### ❓**Vamos manter produção e homologação em projetos GCP separados ou apenas tópicos distintos?**
+
+---
+
+## 🔐 **7. Controle de acesso (IAM)**
+
+### ❓**Devemos criar contas de serviço específicas por serviço ou compartilhar uma só com várias permissões?**
+- Menor privilégio é ideal, mas adiciona complexidade.
+
+---
+
+## ⚙️ **8. Retry e backoff**
+
+### ❓**Como estamos lidando com mensagens que falham? Tem política de retry com backoff configurada?**
+- SubscriberClient tem reentregas automáticas, mas com limites.
+
+---
+
+## 🛠️ **9. Integração com outros sistemas**
+
+### ❓**No futuro, queremos acionar outros consumidores? Qual o plano para fan-out ou múltiplos workers assinando o mesmo tópico?**
+- Talvez usar **Cloud Tasks** em paralelo para controle fino.
+- Avaliar como fan-out afeta a escalabilidade e concorrência.
+
+---
+
+## ☁️ **10. Alternativas ao Pub/Sub**
+
+### ❓**Pub/Sub é a melhor escolha para esse tipo de evento, ou deveríamos avaliar alternativas como Kafka, RabbitMQ ou Azure Service Bus?**
+- Google Pub/Sub é excelente para eventos globais, alta escalabilidade e acoplamento fraco.
+- Mas e se precisarmos de fila com ordenação garantida? Kafka pode ser melhor.
+
+---
+
+Essas dúvidas são ótimas para provocar reflexão estratégica. Se quiser, posso te ajudar a montar uma **apresentação resumida** para a reunião com os tópicos acima organizados como **slides ou pautas de reunião**. Te interessa?

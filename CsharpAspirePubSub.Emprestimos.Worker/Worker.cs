@@ -3,57 +3,66 @@ using Google.Apis.Auth.OAuth2;
 using Google.Cloud.PubSub.V1;
 using System.Text.Json;
 
-namespace CsharpAspirePubSub.Emprestimos.Worker
+namespace CsharpAspirePubSub.Emprestimos.Worker;
+
+/// <summary>
+/// Worker que consome mensagens do Pub/Sub e processa empréstimos.
+/// </summary>
+public class Worker(ILogger<Worker> logger) : BackgroundService
 {
-    /// <summary>
-    /// Classe Worker responsável por escutar mensagens do Pub/Sub e processar solicitações de empréstimos.
-    /// </summary>
-    public class Worker(ILogger<Worker> logger) : BackgroundService
+    private const string IdProjeto = "united-perigee-140020";
+    private const string IdSubscription = "solicitacoes-emprestimos-sub";
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Identificador do projeto no Google Cloud
-        public const string idProjeto = "united-perigee-140020";
+        // Autentica com ADC
+        GoogleCredential credenciais = await GoogleCredential.GetApplicationDefaultAsync(stoppingToken);
 
-        // Identificador da inscrição (subscription) que o Worker irá escutar
-        public const string idInscricao = "solicitacoes-emprestimos-sub";
+        var subscription = SubscriptionName.FromProjectSubscription(IdProjeto, IdSubscription);
 
-        // Caminho para o arquivo de credenciais do Google Cloud
-        private readonly string caminhoCredenciais = "D:\\united-perigee-140020-9b5785432997.json";
-
-        /// <summary>
-        /// Método que inicia a execução do Worker para escutar mensagens do Pub/Sub.
-        /// </summary>
-        /// <param name="stoppingToken">Token para cancelar a execução do Worker.</param>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        // Cria o assinante do Pub/Sub
+        var subscriber = await new SubscriberClientBuilder
         {
-            // Carregar credenciais do arquivo JSON para autenticação no Google Cloud
-            GoogleCredential credenciais = await GoogleCredential.FromFileAsync(caminhoCredenciais, stoppingToken);
+            SubscriptionName = subscription,
+            Credential = credenciais
+        }.BuildAsync(stoppingToken);
 
-            // Criar o nome da inscrição (subscription) no Pub/Sub
-            var nomeInscricao = SubscriptionName.FromProjectSubscription(idProjeto, idInscricao);
+        logger.LogInformation("Worker iniciado e aguardando mensagens do Pub/Sub...");
 
-            // Criar um cliente assinante (SubscriberClient) utilizando as credenciais carregadas
-            var subscriber = await new SubscriberClientBuilder
+        await subscriber.StartAsync(async (mensagem, cancel) =>
+        {
+            try
             {
-                SubscriptionName = nomeInscricao,
-                Credential = credenciais
-            }.BuildAsync(stoppingToken);
+                var json = mensagem.Data.ToStringUtf8();
+                var emprestimo = JsonSerializer.Deserialize<SolicitacaoEmprestimo>(json);
 
-            logger.LogInformation("Worker iniciado e aguardando mensagens...");
+                if (emprestimo == null)
+                {
+                    logger.LogWarning("Mensagem nula ou mal formatada.");
+                    return SubscriberClient.Reply.Nack;
+                }
 
-            // Iniciar a escuta das mensagens no tópico assinado
-            await subscriber.StartAsync((mensagem, cancel) =>
+                await ProcessarSolicitacaoAsync(emprestimo);
+
+                return SubscriberClient.Reply.Ack;
+            }
+            catch (Exception ex)
             {
-                // Desserializar a mensagem recebida do Pub/Sub
-                var solicitacaoEmprestimo = JsonSerializer.Deserialize<SolicitacaoEmprestimo>(mensagem.Data.ToStringUtf8());
+                logger.LogError(ex, "Erro ao processar mensagem.");
+                return SubscriberClient.Reply.Nack;
+            }
+        });
+    }
 
-                // Log das informações do empréstimo processado
-                logger.LogInformation($"Processando empréstimo: Cliente {solicitacaoEmprestimo!.IdCliente}, " +
-                                      $"Valor {solicitacaoEmprestimo.Valor}, " +
-                                      $"Prazo {solicitacaoEmprestimo.PrazoMeses} meses");
+    private Task ProcessarSolicitacaoAsync(SolicitacaoEmprestimo solicitacao)
+    {
+        // Simula processamento da solicitação
+        logger.LogInformation("Processando empréstimo: Cliente {IdCliente}, Valor: {Valor}, Prazo: {Prazo} meses",
+            solicitacao.IdCliente,
+            solicitacao.Valor,
+            solicitacao.PrazoMeses);
 
-                // Confirmar que a mensagem foi processada com sucesso (ACK)
-                return Task.FromResult(SubscriberClient.Reply.Ack);
-            });
-        }
+        // Aqui entraria integração com banco, Redis, etc.
+        return Task.CompletedTask;
     }
 }
