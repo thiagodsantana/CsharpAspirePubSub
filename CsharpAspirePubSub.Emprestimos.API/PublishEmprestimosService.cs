@@ -7,17 +7,8 @@ namespace CsharpAspirePubSub.Emprestimos.API
     /// Serviço responsável por publicar solicitações de empréstimo no Google Pub/Sub.
     /// </summary>
 
-    public class PublishEmprestimosService
+    public class PublishEmprestimosService(PublisherServiceApiClient cliente, TopicName topico)
     {
-        private readonly PublisherServiceApiClient _cliente;
-        private readonly TopicName _topico;
-
-        public PublishEmprestimosService(PublisherServiceApiClient cliente, TopicName topico)
-        {
-            _cliente = cliente;
-            _topico = topico;
-        }
-
         public async Task PublicarAsync(SolicitacaoEmprestimo solicitacao)
         {
             var json = JsonSerializer.Serialize(solicitacao);
@@ -28,11 +19,11 @@ namespace CsharpAspirePubSub.Emprestimos.API
 
             var requisicao = new PublishRequest
             {
-                Topic = _topico.ToString(),
+                Topic = topico.ToString(),
                 Messages = { mensagem }
             };
 
-            await _cliente.PublishAsync(requisicao);
+            await cliente.PublishAsync(requisicao);
         }
     }
 }
